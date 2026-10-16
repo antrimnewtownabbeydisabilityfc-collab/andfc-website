@@ -1,0 +1,32 @@
+name: Update content indexes
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/news/**'
+      - 'data/fixtures/**'
+      - 'data/gallery/**'
+      - 'data/events/**'
+      - 'data/shop/**'
+permissions:
+  contents: write
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild indexes
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          for name in ['news','fixtures','gallery','events','shop']:
+              folder=pathlib.Path('data')/name
+              files=sorted(p.name for p in folder.glob('*.json') if p.name!='index.json')
+              (folder/'index.json').write_text(json.dumps(files,indent=2)+'\n')
+          PY
+      - name: Commit indexes if changed
+        run: |
+          git config user.name "AND FC Site Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/*/index.json
+          if ! git diff --cached --quiet; then git commit -m "Update website content indexes" && git push; fi
