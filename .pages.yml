@@ -1,0 +1,89 @@
+
+media:
+  input: assets/uploads
+  output: /andfc-website/assets/uploads
+
+content:
+  - name: news
+    label: Club News
+    type: collection
+    path: data/news
+    format: json
+    filename: "{primary}.json"
+    fields:
+      - name: title
+        label: Headline
+        type: string
+        required: true
+      - name: date
+        label: Date
+        type: date
+      - name: body
+        label: News Story
+        type: text
+      - name: image
+        label: Photo
+        type: image
+
+  - name: fixtures
+    label: Fixtures and Results
+    type: collection
+    path: data/fixtures
+    format: json
+    filename: "{primary}.json"
+    fields:
+      - name: title
+        label: Match
+        type: string
+        required: true
+      - name: date
+        label: Match Date
+        type: date
+      - name: venue
+        label: Venue
+        type: string
+      - name: result
+        label: Result
+        type: string
+      - name: details
+        label: Match Details
+        type: text
+
+  - name: gallery
+    label: Photo Gallery
+    type: collection
+    path: data/gallery
+    format: json
+    filename: "{primary}.json"
+    fields:
+      - name: title
+        label: Photo Title
+        type: string
+        required: true
+      - name: image
+        label: Upload Photo
+        type: image
+      - name: description
+        label: Description
+        type: text
+
+  - name: events
+    label: Community Events
+    type: collection
+    path: data/events
+    format: json
+    filename: "{primary}.json"
+    fields:
+      - name: title
+        label: Event Name
+        type: string
+        required: true
+      - name: date
+        label: Event Date
+        type: date
+      - name: location
+        label: Location
+        type: string
+      - name: details
+        label: Event Details
+        type: text
