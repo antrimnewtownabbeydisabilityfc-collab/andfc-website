@@ -8,6 +8,8 @@ content:
     label: Club News
     type: collection
     path: data/news
+    format:     path: data/news
+    exclude: ["index.json"]
     format: json
     filename: "{primary}.json"
     fields:
@@ -29,6 +31,8 @@ content:
     label: Fixtures and Results
     type: collection
     path: data/fixtures
+    format:     path: data/news
+    exclude: ["index.json"]
     format: json
     filename: "{primary}.json"
     fields:
@@ -53,6 +57,8 @@ content:
     label: Photo Gallery
     type: collection
     path: data/gallery
+    format:     path: data/news
+    exclude: ["index.json"]
     format: json
     filename: "{primary}.json"
     fields:
@@ -71,6 +77,8 @@ content:
     label: Community Events
     type: collection
     path: data/events
+    format:     path: data/news
+    exclude: ["index.json"]
     format: json
     filename: "{primary}.json"
     fields:
