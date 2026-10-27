@@ -1,5 +1,5 @@
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,updateDoc,collection,addDoc,getDocs,query,where,limit,serverTimestamp}=require('firebase/firestore');
+const {doc,setDoc,getDoc,updateDoc,collection,addDoc,getDocs,query,where,limit,serverTimestamp,writeBatch}=require('firebase/firestore');
 const fs=require('fs');
 (async()=>{
  const env=await initializeTestEnvironment({projectId:'andfc-hub-rules-test',firestore:{rules:fs.readFileSync('backend/combined-firestore.rules','utf8'),host:'127.0.0.1',port:8080}});
@@ -36,6 +36,31 @@ const fs=require('fs');
   await assertSucceeds(getDoc(doc(outsider,'hubSettings/access')));
   await assertSucceeds(getDoc(doc(adult,'hubSettings/access')));
   await assertFails(setDoc(doc(adult,'hubPosts','newJunior'),{audience:'junior'}));
+  // Actual feed queries must work, not just individual document reads.
+  await assertSucceeds(getDocs(query(collection(adult,'hubPosts'),where('audience','==','adult'),where('status','==','approved'),where('kind','==','topics'),limit(50))));
+  await assertSucceeds(getDocs(query(collection(adult,'hubPosts'),where('audience','==','adult'),where('authorUid','==',uid),limit(50))));
+  await assertFails(getDocs(query(collection(outsider,'hubPosts'),where('audience','==','adult'),where('status','==','approved'),limit(50))));
+  await assertFails(getDocs(query(collection(junior,'hubPosts'),where('audience','==','adult'),where('status','==','approved'),limit(50))));
+  // Member cannot approve posts; staff can approve pending submissions.
+  await assertFails(updateDoc(doc(adult,'hubPosts/pendingPost'),{status:'approved'}));
+  await assertSucceeds(updateDoc(doc(coach,'hubPosts/pendingPost'),{status:'approved',locked:false,moderatedBy:admin,moderatedAt:serverTimestamp()}));
+  // Poll voting is private, one vote per approved account.
+  await env.withSecurityRulesDisabled(async c=>{
+   await setDoc(doc(c.firestore(),'hubPosts/pollPost'),{audience:'adult',status:'approved',authorUid:uid,kind:'polls',parentId:'',locked:false,title:'Vote',body:'Choose',options:['A','B']});
+  });
+  await assertSucceeds(setDoc(doc(adult,'hubPosts/pollPost/votes',uid),{uid,choice:0,createdAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(adult,'hubPosts/pollPost/votes',uid),{uid,choice:1,createdAt:serverTimestamp()}));
+  await assertFails(getDocs(collection(adult,'hubPosts/pollPost/votes')));
+  await assertSucceeds(getDocs(collection(coach,'hubPosts/pollPost/votes')));
+  // Reporting must hide a post in the same atomic batch.
+  await assertFails(updateDoc(doc(adult,'hubPosts/adultPost'),{status:'flagged'}));
+  const batch=writeBatch(adult);
+  batch.set(doc(adult,'hubReports/adultPost_'+uid),{postId:'adultPost',reporterUid:uid,audience:'adult',reason:'bullying',status:'open',createdAt:serverTimestamp(),resolvedBy:'',resolvedAt:serverTimestamp()});
+  batch.update(doc(adult,'hubPosts/adultPost'),{status:'flagged'});
+  await assertSucceeds(batch.commit());
+  await assertFails(getDoc(doc(adult,'hubReports/adultPost_'+uid)));
+  await assertSucceeds(getDoc(doc(coach,'hubReports/adultPost_'+uid)));
+  await assertSucceeds(updateDoc(doc(coach,'hubReports/adultPost_'+uid),{status:'resolved',resolvedBy:admin,resolvedAt:serverTimestamp()}));
   console.log('PASS: adult-only room enforcement, membership controls, moderation boundaries and existing admin protection');
  }finally{await env.cleanup();}
 })().catch(e=>{console.error(e);process.exitCode=1});
