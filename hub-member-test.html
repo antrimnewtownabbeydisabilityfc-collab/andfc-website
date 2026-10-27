@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>AND FC – Member Access Test</title><link rel="stylesheet" href="style.css"></head>
+<body><main style="max-width:700px;margin:3rem auto;padding:1.5rem">
+<h1>AND FC – Member Access Test</h1>
+<p>This is a temporary, read-only test for approved members aged 16+. It checks your own sign-in, email verification and Club Hub approval. It does not open the Club Hub, create posts or change any records.</p>
+<p id="status" role="status" aria-live="polite">Loading…</p>
+<form id="signin" hidden><label>Email <input id="email" type="email" autocomplete="username" required></label><label>Password <input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
+<section id="signedin" hidden><p id="account"></p><button id="check" type="button">Check my member access</button> <button id="signout" type="button">Sign out</button><ul id="results" aria-live="polite"></ul></section>
+<p><a href="club-hub.html">Return to disabled Club Hub preview</a></p>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,reload} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {getFirestore,doc,getDoc} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {firebaseConfig} from './hub-config.js';
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+const $=id=>document.getElementById(id),say=s=>{$('status').textContent=s};
+onAuthStateChanged(auth,user=>{$('signin').hidden=!!user;$('signedin').hidden=!user;$('results').replaceChildren();if(user){$('account').textContent='Signed in: '+user.email+' — Email verified: '+(user.emailVerified?'Yes':'No');say('Signed in. Select Check my member access.')}else say('Sign in with your own AND FC member account.');});
+$('signin').onsubmit=async e=>{e.preventDefault();try{say('Signing in…');await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);$('password').value='';}catch(e){say('Sign-in failed: '+(e.code||'unknown error'));$('password').value='';}};
+$('check').onclick=async()=>{const user=auth.currentUser;if(!user)return;const button=$('check');button.disabled=true;$('results').replaceChildren();try{await reload(user);$('account').textContent='Signed in: '+user.email+' — Email verified: '+(user.emailVerified?'Yes':'No');if(!user.emailVerified){say('Email not verified. Ask a coach for help verifying your email.');return;}const checks=[['Your Hub membership','hubMembers',user.uid],['Club Hub status','hubSettings','access']];for(const [label,collection,id] of checks){const li=document.createElement('li');try{const snap=await getDoc(doc(db,collection,id));if(!snap.exists())li.textContent=label+': No record found. Ask a coach for approval.';else if(collection==='hubMembers'){const d=snap.data();li.textContent=label+': '+(d.active===true&&d.audience==='adult'?'Approved for 16+ members':'Not yet approved')+(typeof d.alias==='string'?' — Display name: '+d.alias:'');}else li.textContent=label+': '+(snap.data().enabled===true?'Enabled':'Not yet open');}catch(e){li.textContent=label+': Unable to check ('+(e.code||'error')+').';}$('results').append(li);}say('Read-only checks finished. No records changed.');}catch(e){say('Could not complete check: '+(e.code||'unknown error'));}finally{button.disabled=false;}};
+$('signout').onclick=()=>signOut(auth);
+</script></body></html>

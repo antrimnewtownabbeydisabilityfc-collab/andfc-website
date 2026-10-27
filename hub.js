@@ -31,11 +31,11 @@ async function start(){
     if(!settings.exists()||settings.data().enabled!==true||settings.data().schemaVersion!==1)throw Error('Club Hub access has not been activated. Please contact a coach.');
     staff=s.exists()&&s.data().active===true&&['admin','moderator'].includes(s.data().role)?s.data():null;member=m.exists()?m.data():null;
     if(!allowed())throw Error('Your Club Hub access needs club approval. Please speak to a coach.');
-    if(!staff)audience=member.audience;
-    if(!['adult','junior'].includes(audience))throw Error('Your room needs to be assigned by a coach.');
-    $('room').value=audience;hide('room-control',!staff);hide('moderation',!staff);hide('member-management',staff?.role!=='admin');
+    audience='adult';
+    if(!staff && member?.audience!=='adult')throw Error('Your 16+ Club Hub access needs approval.');
+    $('room').value=audience;hide('room-control',true);hide('moderation',!staff);hide('member-management',staff?.role!=='admin');
     hide('workspace',false);$('identity').textContent=(staff?'Coach / moderator':member.alias)+' · signed in';
-    $('room-heading').textContent=audience==='adult'?'Adult members’ room':'Junior families’ room';
+    $('room-heading').textContent='16+ members’ room';
   }
   async function load(){
     if(!allowed())return;const n=epoch();notice('Loading Club Hub…');
@@ -85,7 +85,7 @@ async function start(){
   $('reset-password').addEventListener('click',async()=>{if(!$('email').value||!$('email').checkValidity()){notice('Enter your email address first.');return;}try{await sendPasswordResetEmail(auth,$('email').value.trim());notice('If an account exists, password reset instructions will be sent.');}catch{notice('Could not request a password reset. Please try again later.');}});
   $('logout').addEventListener('click',async()=>{generation++;clearPrivate();await signOut(auth);});
   $('refresh').addEventListener('click',load);$('refresh-mod').addEventListener('click',load);
-  $('room').addEventListener('change',()=>{generation++;audience=$('room').value;load();});
+
   $('categories').addEventListener('click',e=>{const next=e.target.dataset.category;if(!names[next])return;generation++;category=next;for(const b of $('categories').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.category===category));$('feed-heading').textContent=names[category];$('category-help').textContent=helpers[category];hide('poll-options',category!=='polls');$('option-a').required=category==='polls';$('option-b').required=category==='polls';load();});
   $('compose').addEventListener('submit',async e=>{e.preventDefault();const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{await checkAccess();const post=makePost({title:$('post-title').value,body:$('post-body').value,kind:category,options:[$('option-a').value,$('option-b').value],audience},staff?{alias:'AND FC Coach'}:member,user.uid,serverTimestamp());await setDoc(doc(collection(db,'hubPosts')),post);e.target.reset();await load();notice('Sent for coach approval. You can check it under My submissions.');}catch(e){notice(e.message||'Your post could not be sent.');}finally{submit.disabled=false;}});
   $('member-form').addEventListener('submit',async e=>{e.preventDefault();try{const uid=$('member-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter the Firebase account UID.');await setDoc(doc(db,'hubMembers',uid),{alias:cleanText($('member-alias').value,40),audience:$('member-room').value,active:$('member-active').value==='true',updatedBy:user.uid,updatedAt:serverTimestamp()});notice('Hub membership updated.');}catch(e){notice(e.message||'Membership could not be updated.');}});

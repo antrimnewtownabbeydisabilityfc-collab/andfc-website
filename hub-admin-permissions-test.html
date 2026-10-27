@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>AND FC – Administrator Permissions Test</title><link rel="stylesheet" href="style.css"></head>
+<body><main style="max-width:720px;margin:3rem auto;padding:1.5rem"><h1>AND FC – Administrator Permissions Test</h1>
+<p>This temporary staging-only test checks Firebase permissions using read-only requests. It does not create or edit any records, deploy security rules, or open the Club Hub.</p>
+<p id="status" role="status" aria-live="polite">Loading…</p>
+<form id="signin" hidden><label>Club administrator email<input id="email" type="email" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in and check permissions</button></form>
+<section id="results" hidden><p id="account"></p><button id="check" type="button">Run read-only permissions checks</button> <button id="signout" type="button">Sign out</button><ul id="checks" aria-live="polite"></ul><p><strong>Expected before deployment:</strong> Existing admin record readable; new Hub records may show permission denied because the proposed combined security rules are not deployed. Permission denied is not a reason to enable the Hub.</p></section>
+<p><a href="club-hub.html">Return to disabled Club Hub preview</a></p></main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,reload} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {getFirestore,doc,getDoc} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {firebaseConfig} from './hub-config.js';
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+const admin='antrimnewtownabbeydisabilityfc@gmail.com';
+const $=id=>document.getElementById(id),say=s=>{$('status').textContent=s};
+onAuthStateChanged(auth,user=>{$('signin').hidden=!!user;$('results').hidden=!user;$('checks').replaceChildren();if(user){$('account').textContent='Signed in: '+user.email+' — Email verified: '+(user.emailVerified?'Yes':'No');say('Signed in. Run the read-only checks below.')}else say('Sign in with the existing club administrator account to test permissions.');});
+$('signin').onsubmit=async e=>{e.preventDefault();const email=$('email').value.trim();if(email.toLowerCase()!==admin){say('Only the existing club administrator account is supported on this test page.');return;}try{say('Signing in…');await signInWithEmailAndPassword(auth,email,$('password').value);$('password').value='';}catch(e){say('Sign-in failed: '+e.code);$('password').value='';}};
+$('check').onclick=async()=>{const user=auth.currentUser;if(!user||user.email?.toLowerCase()!==admin){say('Administrator account required.');return;}const button=$('check');button.disabled=true;$('checks').replaceChildren();try{await reload(user);$('account').textContent='Signed in: '+user.email+' — Email verified: '+(user.emailVerified?'Yes':'No');if(!user.emailVerified){say('Email not verified. Checks stopped.');return;}const tests=[['Existing admin record','admin',user.uid],['Hub staff record','hubStaff',user.uid],['Hub settings','hubSettings','access']];for(const [label,collection,id] of tests){const li=document.createElement('li');try{const snap=await getDoc(doc(db,collection,id));if(!snap.exists())li.textContent=label+': Document not found';else if(collection==='admin'||collection==='hubStaff')li.textContent=label+': Read allowed; active='+String(snap.data().active===true)+'; admin role='+String(snap.data().role==='admin');else li.textContent=label+': Read allowed; Hub enabled='+String(snap.data().enabled===true);}catch(e){li.textContent=label+': '+(e.code==='permission-denied'?'Permission denied (expected for new Hub records until rules deployment)':e.code||'Read failed');}$('checks').append(li);}say('Read-only checks finished. No records changed.');}catch(e){say('Check could not finish: '+(e.code||'unknown error'));}finally{button.disabled=false;}};
+$('signout').onclick=()=>signOut(auth);
+</script></body></html>

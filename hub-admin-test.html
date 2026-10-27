@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>AND FC – Administrator Sign-in Test</title><link rel="stylesheet" href="style.css"></head>
+<body><main style="max-width:650px;margin:3rem auto;padding:1.5rem">
+<h1>AND FC – Administrator Sign-in Test</h1>
+<p>This is a temporary test page for the club administrator only. It checks Firebase sign-in and email verification. It does not open the Club Hub, approve members, or change Firestore rules.</p>
+<p id="status" role="status" aria-live="polite">Loading…</p>
+<form id="signin" hidden><label>Email <input id="email" type="email" autocomplete="username" required></label><label>Password <input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Test sign-in</button></form>
+<div id="signedin" hidden><p id="account"></p><button id="refresh" type="button">Recheck email verification</button> <button id="send" type="button">Send new verification email</button> <button id="signout" type="button">Sign out</button></div>
+<p><a href="club-hub.html">Return to Club Hub preview</a></p>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,reload,sendEmailVerification} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {firebaseConfig} from './hub-config.js';
+const auth=getAuth(initializeApp(firebaseConfig));
+const $=id=>document.getElementById(id);
+const adminEmail='antrimnewtownabbeydisabilityfc@gmail.com';
+const say=message=>{$('status').textContent=message};
+onAuthStateChanged(auth,user=>{
+ $('signin').hidden=!!user;$('signedin').hidden=!user;
+ if(user){$('account').textContent='Signed in: '+user.email+' — Email verified: '+(user.emailVerified?'Yes':'No');say('Signed in. The Club Hub is still disabled.');}
+ else say('Sign in using the existing AND FC club administrator account.');
+});
+$('signin').addEventListener('submit',async e=>{
+ e.preventDefault();const email=$('email').value.trim();
+ if(email.toLowerCase()!==adminEmail){say('This test page is for the existing club administrator account only.');return}
+ try{say('Checking sign-in…');await signInWithEmailAndPassword(auth,email,$('password').value);$('password').value='';}
+ catch(err){say('Sign-in failed: '+err.code);$('password').value='';}
+});
+$('refresh').onclick=async()=>{try{await reload(auth.currentUser);$('account').textContent='Signed in: '+auth.currentUser.email+' — Email verified: '+(auth.currentUser.emailVerified?'Yes':'No');say('Verification status refreshed.')}catch(e){say('Could not refresh: '+e.code)}};
+$('send').onclick=async()=>{try{if(auth.currentUser.emailVerified){say('Email is already verified.');return}await sendEmailVerification(auth.currentUser);say('Verification email requested. Check the club inbox and spam folder.')}catch(e){say('Could not send email: '+e.code)}};
+$('signout').onclick=()=>signOut(auth);
+</script></body></html>
