@@ -32,7 +32,7 @@ service cloud.firestore {
     function hubReady() { return get(/databases/$(database)/documents/hubSettings/access).data.enabled == true && get(/databases/$(database)/documents/hubSettings/access).data.schemaVersion == 1; }
     function hubStaff() { return hubVerified() && exists(/databases/$(database)/documents/hubStaff/$(request.auth.uid)) && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.role in ['admin','moderator']; }
     function hubAdmin() { return hubStaff() && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.role == 'admin'; }
-    function hubRoom(audience) { return hubVerified() && hubReady() && audience in ['adult','junior'] && (hubStaff() || (exists(/databases/$(database)/documents/hubMembers/$(request.auth.uid)) && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.audience == audience)); }
+    function hubRoom(audience) { return hubVerified() && hubReady() && audience == 'adult' && (hubStaff() || (exists(/databases/$(database)/documents/hubMembers/$(request.auth.uid)) && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.audience == audience)); }
     function hubText(s, maximum) { return s is string && s.size() > 0 && s.size() <= maximum && !s.matches('.*(https?:|www[.]|@).*'); }
     function hubPostRead(p) { return hubRoom(p.audience) && (hubStaff() || p.status == 'approved' || p.authorUid == request.auth.uid); }
     function hubParent(p) { return p.parentId == '' || (get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.status == 'approved' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.locked == false && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.parentId == '' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.audience == p.audience && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.kind == p.kind); }
@@ -48,7 +48,7 @@ service cloud.firestore {
     match /hubMembers/{uid} {
       allow get: if hubVerified() && (uid == request.auth.uid || hubAdmin());
       allow list: if hubAdmin() && hubReady();
-      allow create, update: if hubAdmin() && hubReady() && request.resource.data.keys().hasAll(['alias','audience','active','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['alias','audience','active','updatedBy','updatedAt']) && hubText(request.resource.data.alias,40) && request.resource.data.audience in ['adult','junior'] && request.resource.data.active is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+      allow create, update: if hubAdmin() && hubReady() && request.resource.data.keys().hasAll(['alias','audience','active','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['alias','audience','active','updatedBy','updatedAt']) && hubText(request.resource.data.alias,40) && request.resource.data.audience == 'adult' && request.resource.data.active is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
       allow delete: if false;
     }
     match /hubPosts/{postId} {
