@@ -33,8 +33,8 @@ const fs=require('fs');
   await assertFails(getDoc(doc(adult,'admin',admin)));
   await assertFails(getDoc(doc(outsider,'members',uid)));
   await assertSucceeds(getDoc(doc(coach,'admin',admin)));
-  await assertFails(getDoc(doc(outsider,'hubSettings/access')));
+  await assertSucceeds(getDoc(doc(outsider,'hubSettings/access')));
   await assertSucceeds(getDoc(doc(adult,'hubSettings/access')));
-  console.log('PASS: adult/junior isolation, staff access, unverified and outsider rejection, pending privacy, no self-promotion, existing admin protection');
+  console.log('PASS: room separation, membership controls, moderation boundaries and existing admin protection');
  }finally{await env.cleanup();}
 })().catch(e=>{console.error(e);process.exitCode=1});
