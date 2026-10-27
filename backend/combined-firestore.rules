@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() {
+      return verified()
+        && exists(/databases/$(database)/documents/admin/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/admin/$(request.auth.uid)).data.active == true;
+    }
+    match /admin/{userId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /members/{userId} {
+      allow create: if verified()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['email','status','createdAt'])
+        && request.resource.data.keys().hasAll(['email','status','createdAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow get: if (verified() && request.auth.uid == userId) || isAdmin();
+      allow list: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['pending','approved','rejected'];
+      allow delete: if false;
+    }
+    function hubVerified() { return request.auth != null && request.auth.token.email_verified == true; }
+    function hubReady() { return get(/databases/$(database)/documents/hubSettings/access).data.enabled == true && get(/databases/$(database)/documents/hubSettings/access).data.schemaVersion == 1; }
+    function hubStaff() { return hubVerified() && exists(/databases/$(database)/documents/hubStaff/$(request.auth.uid)) && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.role in ['admin','moderator']; }
+    function hubAdmin() { return hubStaff() && get(/databases/$(database)/documents/hubStaff/$(request.auth.uid)).data.role == 'admin'; }
+    function hubRoom(audience) { return hubVerified() && hubReady() && audience in ['adult','junior'] && (hubStaff() || (exists(/databases/$(database)/documents/hubMembers/$(request.auth.uid)) && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.active == true && get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.audience == audience)); }
+    function hubText(s, maximum) { return s is string && s.size() > 0 && s.size() <= maximum && !s.matches('.*(https?:|www[.]|@).*'); }
+    function hubPostRead(p) { return hubRoom(p.audience) && (hubStaff() || p.status == 'approved' || p.authorUid == request.auth.uid); }
+    function hubParent(p) { return p.parentId == '' || (get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.status == 'approved' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.locked == false && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.parentId == '' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.audience == p.audience && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.kind == p.kind); }
+    function hubOptions(p) { return p.options is list && ((p.kind == 'polls' && p.parentId == '' && p.options.size() == 2 && hubText(p.options[0],60) && hubText(p.options[1],60) && p.options[0] != p.options[1]) || ((p.kind != 'polls' || p.parentId != '') && p.options.size() == 0)); }
+    match /hubSettings/{id} {
+      allow get: if hubVerified() && id == 'access';
+      allow list, write: if false;
+    }
+    match /hubStaff/{uid} {
+      allow get: if hubVerified() && uid == request.auth.uid;
+      allow list, write: if false; // Assigned only using trusted Firebase Console/Admin SDK.
+    }
+    match /hubMembers/{uid} {
+      allow get: if hubVerified() && (uid == request.auth.uid || hubAdmin());
+      allow list: if hubAdmin() && hubReady();
+      allow create, update: if hubAdmin() && hubReady() && request.resource.data.keys().hasAll(['alias','audience','active','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['alias','audience','active','updatedBy','updatedAt']) && hubText(request.resource.data.alias,40) && request.resource.data.audience in ['adult','junior'] && request.resource.data.active is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    match /hubPosts/{postId} {
+      allow get: if hubPostRead(resource.data);
+      allow list: if request.query.limit <= 50 && hubPostRead(resource.data);
+      allow create: if hubRoom(request.resource.data.audience)
+        && request.resource.data.keys().hasAll(['title','body','kind','options','parentId','audience','authorUid','alias','createdAt','status','locked','moderatedBy','moderatedAt'])
+        && request.resource.data.keys().hasOnly(['title','body','kind','options','parentId','audience','authorUid','alias','createdAt','status','locked','moderatedBy','moderatedAt'])
+        && hubText(request.resource.data.title,100) && hubText(request.resource.data.body,1200)
+        && request.resource.data.kind in ['banter','topics','polls','ideas']
+        && request.resource.data.parentId is string && request.resource.data.parentId.size() <= 128
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.alias == (hubStaff() ? 'AND FC Coach' : get(/databases/$(database)/documents/hubMembers/$(request.auth.uid)).data.alias)
+        && request.resource.data.createdAt == request.time && request.resource.data.status == 'pending'
+        && request.resource.data.locked == false && request.resource.data.moderatedBy == '' && request.resource.data.moderatedAt == request.time
+        && hubOptions(request.resource.data) && hubParent(request.resource.data);
+      allow update: if hubRoom(resource.data.audience) && (
+        // Coaches can moderate but cannot rewrite an author's message or room.
+        (hubStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','locked','moderatedBy','moderatedAt']) && request.resource.data.status in ['approved','rejected','hidden','flagged','pending'] && request.resource.data.locked is bool && request.resource.data.moderatedBy == request.auth.uid && request.resource.data.moderatedAt == request.time && (request.resource.data.status != 'approved' || hubParent(resource.data)))
+        // Authors can withdraw but cannot approve/edit their own submission.
+        || (resource.data.authorUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'withdrawn')
+        // Reporting must atomically create the private report and hide the post.
+        || (resource.data.status == 'approved' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'flagged' && !exists(/databases/$(database)/documents/hubReports/$(postId + '_' + request.auth.uid)) && getAfter(/databases/$(database)/documents/hubReports/$(postId + '_' + request.auth.uid)).data.postId == postId && getAfter(/databases/$(database)/documents/hubReports/$(postId + '_' + request.auth.uid)).data.reporterUid == request.auth.uid)
+      );
+      allow delete: if false;
+      match /votes/{uid} {
+        function hubPoll() { return get(/databases/$(database)/documents/hubPosts/$(postId)).data; }
+        allow get: if hubRoom(hubPoll().audience) && (uid == request.auth.uid || hubStaff());
+        allow list: if hubRoom(hubPoll().audience) && hubStaff();
+        allow create: if hubRoom(hubPoll().audience) && uid == request.auth.uid && hubPoll().status == 'approved' && hubPoll().kind == 'polls' && hubPoll().parentId == '' && hubPoll().locked == false && request.resource.data.keys().hasAll(['uid','choice','createdAt']) && request.resource.data.keys().hasOnly(['uid','choice','createdAt']) && request.resource.data.uid == uid && request.resource.data.choice is int && request.resource.data.choice in [0,1] && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+    match /hubReports/{reportId} {
+      allow get: if hubStaff() && hubRoom(resource.data.audience);
+      allow list: if request.query.limit <= 50 && hubStaff() && hubRoom(resource.data.audience);
+      allow create: if hubRoom(request.resource.data.audience) && reportId == request.resource.data.postId + '_' + request.auth.uid
+        && request.resource.data.keys().hasAll(['postId','reporterUid','audience','reason','status','createdAt','resolvedBy','resolvedAt'])
+        && request.resource.data.keys().hasOnly(['postId','reporterUid','audience','reason','status','createdAt','resolvedBy','resolvedAt'])
+        && request.resource.data.reporterUid == request.auth.uid && request.resource.data.reason in ['bullying','privacy','discrimination','safeguarding','other']
+        && request.resource.data.status == 'open' && request.resource.data.createdAt == request.time && request.resource.data.resolvedBy == '' && request.resource.data.resolvedAt == request.time
+        && get(/databases/$(database)/documents/hubPosts/$(request.resource.data.postId)).data.audience == request.resource.data.audience
+        && get(/databases/$(database)/documents/hubPosts/$(request.resource.data.postId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/hubPosts/$(request.resource.data.postId)).data.status == 'flagged';
+      allow update: if hubStaff() && hubRoom(resource.data.audience) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','resolvedBy','resolvedAt']) && request.resource.data.status == 'resolved' && request.resource.data.resolvedBy == request.auth.uid && request.resource.data.resolvedAt == request.time;
+      allow delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
