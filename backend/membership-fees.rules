@@ -1,0 +1,16 @@
+match /hubMembershipFees/{id} {
+  allow get, list: if hubAdmin() && hubReady();
+  allow create, update: if hubAdmin() && hubReady()
+    && request.resource.data.keys().hasAll(['playerId','month','due','paid','method','updatedBy','updatedAt'])
+    && request.resource.data.keys().hasOnly(['playerId','month','due','paid','method','updatedBy','updatedAt'])
+    && request.resource.data.playerId is string
+    && exists(/databases/$(database)/documents/hubAttendancePlayers/$(request.resource.data.playerId))
+    && request.resource.data.month is string && request.resource.data.month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+    && id == request.resource.data.playerId + '_' + request.resource.data.month
+    && request.resource.data.due is int && request.resource.data.due >= 0 && request.resource.data.due <= 100000
+    && request.resource.data.paid is int && request.resource.data.paid >= 0 && request.resource.data.paid <= request.resource.data.due
+    && request.resource.data.method in ['None','Cash','Bank transfer','Mixed']
+    && ((request.resource.data.paid == 0 && request.resource.data.method == 'None') || (request.resource.data.paid > 0 && request.resource.data.method != 'None'))
+    && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+  allow delete: if false;
+}
