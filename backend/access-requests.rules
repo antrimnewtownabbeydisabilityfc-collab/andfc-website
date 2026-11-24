@@ -1,0 +1,8 @@
+// Insert inside match /databases/{database}/documents in existing rules.
+match /hubAccessRequests/{uid} {
+  allow get: if request.auth != null && (request.auth.uid == uid || hubAdmin());
+  allow list: if hubAdmin();
+  allow create: if request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true && request.resource.data.keys().hasOnly(['alias','email','createdAt']) && request.resource.data.keys().hasAll(['alias','email','createdAt']) && request.resource.data.alias is string && request.resource.data.alias.size() > 0 && request.resource.data.alias.size() <= 40 && request.resource.data.email == request.auth.token.email && request.resource.data.createdAt == request.time;
+  allow update: if false;
+  allow delete: if hubAdmin();
+}
