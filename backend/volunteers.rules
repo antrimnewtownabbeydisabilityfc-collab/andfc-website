@@ -1,0 +1,15 @@
+match /hubVolunteers/{id} {
+ allow get, list: if hubAdmin() && hubReady();
+ allow create, update: if hubAdmin() && hubReady()
+ && request.resource.data.keys().hasAll(['name','role','active','access','accessDate','coaching','coachingDate','safeguarding','safeguardingDate','firstaid','firstaidDate','updatedBy','updatedAt'])
+ && request.resource.data.keys().hasOnly(['name','role','active','access','accessDate','coaching','coachingDate','safeguarding','safeguardingDate','firstaid','firstaidDate','updatedBy','updatedAt'])
+ && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+ && request.resource.data.role in ['Coach','Volunteer','Committee']
+ && request.resource.data.active is bool
+ && request.resource.data.access in ['Not recorded','Pending','Confirmed','Not applicable'] && request.resource.data.accessDate is string && request.resource.data.accessDate.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
+ && request.resource.data.coaching in ['Not recorded','Pending','Confirmed','Not applicable'] && request.resource.data.coachingDate is string && request.resource.data.coachingDate.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
+ && request.resource.data.safeguarding in ['Not recorded','Pending','Confirmed','Not applicable'] && request.resource.data.safeguardingDate is string && request.resource.data.safeguardingDate.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
+ && request.resource.data.firstaid in ['Not recorded','Pending','Confirmed','Not applicable'] && request.resource.data.firstaidDate is string && request.resource.data.firstaidDate.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
+ && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+}
