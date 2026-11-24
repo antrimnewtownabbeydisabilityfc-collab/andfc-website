@@ -1,0 +1,18 @@
+{
+  "id": "./club-hub.html",
+  "name": "AND FC Club Hub",
+  "short_name": "AND FC Hub",
+  "start_url": "./club-hub.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101114",
+  "theme_color": "#101114",
+  "icons": [
+    {
+      "src": "hub-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
