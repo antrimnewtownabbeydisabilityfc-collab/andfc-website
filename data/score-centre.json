@@ -1,0 +1,141 @@
+[
+  {
+    "date": "2026-10-24",
+    "team": "Eagles",
+    "matches": [
+      [
+        "Hanover FC Youth All Stars",
+        0,
+        0
+      ],
+      [
+        "Grove/Crusaders FC",
+        4,
+        0
+      ],
+      [
+        "Belfast Celtic Inclusion",
+        0,
+        0
+      ]
+    ],
+    "scorers": null
+  },
+  {
+    "date": "2026-10-24",
+    "team": "Hawks",
+    "matches": [
+      [
+        "Belfast Celtic Inclusion",
+        5,
+        0
+      ],
+      [
+        "Well Lane Warriors FC",
+        5,
+        0
+      ],
+      [
+        "St James FC",
+        0,
+        1
+      ]
+    ],
+    "scorers": null
+  },
+  {
+    "date": "2026-10-24",
+    "team": "Cubs",
+    "matches": [
+      [
+        "Ards FC",
+        0,
+        1
+      ],
+      [
+        "Avoniel FFC",
+        0,
+        6
+      ]
+    ],
+    "scorers": null
+  },
+  {
+    "date": "2026-11-21",
+    "team": "Eagles",
+    "matches": [
+      [
+        "Albert Foundry",
+        0,
+        3
+      ],
+      [
+        "Belfast Celtic",
+        2,
+        1
+      ],
+      [
+        "Linfield",
+        2,
+        3
+      ]
+    ],
+    "scorers": {
+      "Colin": 2,
+      "Mason": 2
+    }
+  },
+  {
+    "date": "2026-11-21",
+    "team": "Hawks",
+    "matches": [
+      [
+        "City Inclusion",
+        3,
+        2
+      ],
+      [
+        "Rosario",
+        5,
+        0
+      ],
+      [
+        "NOW Group",
+        7,
+        1
+      ]
+    ],
+    "scorers": {
+      "Corey": 6,
+      "Marc": 5,
+      "Jamie": 2,
+      "Ross": 1,
+      "Leo": 1
+    }
+  },
+  {
+    "date": "2026-11-21",
+    "team": "Cubs",
+    "matches": [
+      [
+        "CSP (B)",
+        0,
+        3
+      ],
+      [
+        "Belfast Bravehearts",
+        3,
+        0
+      ],
+      [
+        "Linfield (F)",
+        1,
+        0
+      ]
+    ],
+    "scorers": {
+      "Jamie": 3,
+      "Sarah": 1
+    }
+  }
+]
