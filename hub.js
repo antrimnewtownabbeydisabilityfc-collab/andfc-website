@@ -21,7 +21,7 @@ async function start(){
   const allowed=()=>!!user&&user.emailVerified&&(staff?.active===true||member?.active===true);
   const names={banter:'Banter',topics:'Topics',polls:'Polls',ideas:'Ideas'};
   const helpers={banter:'Share kind jokes and positive club moments. Everyone should be in on the joke.',topics:'Talk football, hobbies and club life.',polls:'Ask the club a question with two choices.',ideas:'Suggest fundraising events, trips and improvements.'};
-  function clearPrivate(){ $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
+  function clearPrivate(){clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
   const list=async(name,...filters)=>{const r=await getDocs(query(collection(db,name),...filters,limit(50)));return r.docs.map(d=>({id:d.id,...d.data()}));};
   async function checkAccess(){
     const accessGeneration=epoch(),accessUid=user?.uid;
@@ -84,6 +84,28 @@ async function start(){
   }
   const fields=['cost','paid','fundraising','subsidy','target'];
   const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(v/100);
+  let savingsRows=[];
+  function clearSavingsReport(){savingsRows=[];$('savings-summary')?.replaceChildren();}
+  async function savingsMembers(n){
+    if(staff?.role!=='admin'||!valid(n))return;
+    const input=$('savings-uid');let picker=$('savings-member-picker');
+    if(!picker){picker=element('select');picker.id='savings-member-picker';picker.setAttribute('aria-label','Approved member');input.parentElement.before(picker);picker.addEventListener('change',()=>{input.value=picker.value;input.dispatchEvent(new Event('input'));if(input.value)$('savings-load').click();});}
+    const snap=await getDocs(collection(db,'hubMembers'));if(!valid(n)||staff?.role!=='admin')return;
+    picker.replaceChildren(new Option('Choose an approved member',''));
+    const members=snap.docs.filter(d=>d.data().active===true&&d.data().audience==='adult').sort((a,b)=>a.data().alias.localeCompare(b.data().alias));
+    for(const m of members)picker.add(new Option(m.data().alias+' ('+m.id.slice(-6)+')',m.id));
+    picker.value=input.value;
+    let summary=$('savings-summary');if(!summary){summary=element('div');summary.id='savings-summary';$('savings-admin-form').after(summary);}
+    summary.replaceChildren(button('Calculate club savings summary',async()=>{
+      const g=epoch();clearSavingsReport();const rows=[];
+      for(const m of members){const s=await getDoc(doc(db,'hubSavings',m.id));if(!valid(g)||staff?.role!=='admin')return;if(s.exists()&&fields.every(k=>Number.isInteger(s.data()[k])&&s.data()[k]>=0))rows.push({alias:m.data().alias,uid:m.id,...s.data()});}
+      if(!valid(g))return;savingsRows=rows;const total=k=>rows.reduce((a,b)=>a+b[k],0);
+      summary.append(element('p',rows.length+' savings records for '+members.length+' approved members. Includes any test records; excludes suspended members.'));
+      for(const k of fields)summary.append(element('p',k+': '+money(total(k))));
+      summary.append(element('p','Outstanding: '+money(rows.reduce((a,b)=>a+Math.max(0,b.cost-b.paid-b.fundraising-b.subsidy),0))));
+      summary.append(button('Download private CSV report',async()=>{if(!valid(g)||staff?.role!=='admin')return;const safe=v=>'"'+String(v).replace(/"/g,'""').replace(/^[=+@\\-]/,"'  async function loadSavings(n){")+'"';const lines=[['Member','UID','Cost GBP','Paid GBP','Fundraising GBP','Subsidy GBP','Target GBP','Outstanding GBP'],...savingsRows.map(b=>[b.alias,b.uid,...fields.map(k=>(b[k]/100).toFixed(2)),(Math.max(0,b.cost-b.paid-b.fundraising-b.subsidy)/100).toFixed(2)])];const url=URL.createObjectURL(new Blob([lines.map(l=>l.map(safe).join(',')).join('\n')],{type:'text/csv'}));const a=element('a');a.href=url;a.download='andfc-private-stirling-totals.csv';a.click();URL.revokeObjectURL(url);}));
+    }));
+  }
   async function loadSavings(n){
     if(!$('savings-section')||!valid(n))return;
     const view=$('savings-view');view.replaceChildren();
@@ -91,15 +113,16 @@ async function start(){
     try{
       const s=await getDoc(doc(db,'hubSavings',user.uid));if(!valid(n))return;
       hide('savings-section',false);hide('savings-admin',staff?.role!=='admin');
+      if(staff?.role==='admin')await savingsMembers(n);if(!valid(n))return;
       if(!s.exists()){view.textContent=staff?'Use the administrator form to manage member totals.':'No savings record entered yet.';return;}
       const d=s.data();if(!fields.every(k=>Number.isInteger(d[k])&&d[k]>=0))throw Error('Invalid record');
       for(const [label,value] of [['Estimated cost',d.cost],['Personal savings paid',d.paid],['Fundraising credit',d.fundraising],['Club subsidy',d.subsidy],['Estimated outstanding balance',Math.max(0,d.cost-d.paid-d.fundraising-d.subsidy)],['Personal savings target',d.target]])view.append(element('p',label+': '+money(value)));
-      view.append(element('p','Savings progress: '+(d.target?Math.min(100,Math.round(d.paid/d.target*100))+'%':'No target set')));
+      view.append(element('p','Savings progress: '+(d.target?Math.min(100,Math.round(d.paid/d.target*100))+'%':'No target set')));if(d.target){const bar=element('progress');bar.max=d.target;bar.value=Math.min(d.paid,d.target);bar.setAttribute('aria-label','Personal savings progress');view.append(bar);}
     }catch{if(valid(n)){view.replaceChildren();hide('savings-section',true);}}
   }
   $('savings-load')?.addEventListener('click',async()=>{const n=epoch();try{if(staff?.role!=='admin')return;const uid=$('savings-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter a member UID.');const s=await getDoc(doc(db,'hubSavings',uid));if(!valid(n)||staff?.role!=='admin'||$('savings-uid').value.trim()!==uid)return;for(const k of fields)$('savings-'+k).value=s.exists()?(s.data()[k]/100).toFixed(2):'';notice(s.exists()?'Savings record loaded.':'No record yet. Enter verified amounts.');}catch{if(valid(n))notice('Savings records unavailable. Check database rules.');}});
   $('savings-uid')?.addEventListener('input',()=>{for(const k of fields)$('savings-'+k).value='';});
-  $('savings-admin-form')?.addEventListener('submit',async e=>{e.preventDefault();const n=epoch();const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{if(staff?.role!=='admin')return;const uid=$('savings-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter a member UID.');const d={};for(const k of fields){const v=$('savings-'+k).value;if(!/^\d+(\.\d{1,2})?$/.test(v)||Number(v)>100000)throw Error('Enter valid amounts in pounds.');d[k]=Math.round(Number(v)*100);}if(!confirm('Save these cumulative totals for member '+uid+'?'))return;await setDoc(doc(db,'hubSavings',uid),{...d,updatedBy:user.uid,updatedAt:serverTimestamp()});if(valid(n)){e.target.reset();notice('Savings totals saved.');}}catch(err){if(valid(n))notice(err.message||'Savings could not be saved.');}finally{submit.disabled=false;}});
+  $('savings-admin-form')?.addEventListener('submit',async e=>{e.preventDefault();const n=epoch();const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{if(staff?.role!=='admin')return;const uid=$('savings-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter a member UID.');const d={};for(const k of fields){const v=$('savings-'+k).value;if(!/^\d+(\.\d{1,2})?$/.test(v)||Number(v)>100000)throw Error('Enter valid amounts in pounds.');d[k]=Math.round(Number(v)*100);}if(!confirm('Save these cumulative totals for member '+uid+'?'))return;await setDoc(doc(db,'hubSavings',uid),{...d,updatedBy:user.uid,updatedAt:serverTimestamp()});if(valid(n)){e.target.reset();clearSavingsReport();await loadSavings(n);if(valid(n))notice('Savings totals saved.');}}catch(err){if(valid(n))notice(err.message||'Savings could not be saved.');}finally{submit.disabled=false;}});
   $('login').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);$('password').value='';}catch{notice('Sign-in failed. Check your email and password.');}});
   $('reset-password').addEventListener('click',async()=>{if(!$('email').value||!$('email').checkValidity()){notice('Enter your email address first.');return;}try{await sendPasswordResetEmail(auth,$('email').value.trim());notice('If an account exists, password reset instructions will be sent.');}catch{notice('Could not request a password reset. Please try again later.');}});
   $('logout').addEventListener('click',async()=>{generation++;clearPrivate();await signOut(auth);});
