@@ -1,0 +1,9 @@
+// Insert inside existing match /databases/{database}/documents block.
+match /hubSavings/{uid} {
+  function savingsAdmin() { return hubAdmin() && hubReady(); }
+  function activeAdult() { return exists(/databases/$(database)/documents/hubMembers/$(uid)) && get(/databases/$(database)/documents/hubMembers/$(uid)).data.active == true && get(/databases/$(database)/documents/hubMembers/$(uid)).data.audience == 'adult'; }
+  function amount(v) { return v is int && v >= 0 && v <= 10000000; }
+  allow get: if savingsAdmin() || (hubRoom('adult') && request.auth.uid == uid && activeAdult());
+  allow list, delete: if false;
+  allow create, update: if savingsAdmin() && activeAdult() && request.resource.data.keys().hasAll(['cost','paid','fundraising','subsidy','target','updatedAt','updatedBy']) && request.resource.data.keys().hasOnly(['cost','paid','fundraising','subsidy','target','updatedAt','updatedBy']) && amount(request.resource.data.cost) && amount(request.resource.data.paid) && amount(request.resource.data.fundraising) && amount(request.resource.data.subsidy) && amount(request.resource.data.target) && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid;
+}
