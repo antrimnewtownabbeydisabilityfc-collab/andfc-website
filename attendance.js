@@ -1,6 +1,6 @@
 export function attendance({F,db,$,isAdmin,epoch,valid,uid}){
 const {collection,doc,getDocs,getDoc,setDoc,serverTimestamp}=F;
-const groups=['Juniors','Intermediates','Eagles','Hawks','Cubs'], statuses=['Present','Absent','Excused'];let players=[],sessions=[],loaded='',busy=false;
+const groups=['Eagles','Hawks','Cubs'], statuses=['Present','Absent','Excused'];let players=[],sessions=[],loaded='',busy=false;
 const el=(tag,t)=>{const n=document.createElement(tag);if(t)n.textContent=t;return n;};
 const msg=t=>$('att-message').textContent=t;
 const ok=n=>valid(n)&&isAdmin();
