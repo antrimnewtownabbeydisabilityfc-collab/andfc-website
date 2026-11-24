@@ -21,7 +21,7 @@ async function start(){
   const allowed=()=>!!user&&user.emailVerified&&(staff?.active===true||member?.active===true);
   const names={banter:'Banter',topics:'Topics',polls:'Polls',ideas:'Ideas'};
   const helpers={banter:'Share kind jokes and positive club moments. Everyone should be in on the joke.',topics:'Talk football, hobbies and club life.',polls:'Ask the club a question with two choices.',ideas:'Suggest fundraising events, trips and improvements.'};
-  function clearPrivate(){for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
+  function clearPrivate(){ $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
   const list=async(name,...filters)=>{const r=await getDocs(query(collection(db,name),...filters,limit(50)));return r.docs.map(d=>({id:d.id,...d.data()}));};
   async function checkAccess(){
     const accessGeneration=epoch(),accessUid=user?.uid;
@@ -49,6 +49,7 @@ async function start(){
       $('mine').replaceChildren();for(const post of mine.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)))$('mine').append(render(post,[],n,true));
       if(!mine.length)$('mine').textContent='You have not submitted anything in this room.';
       if(staff)await loadModeration(n);
+      await loadSavings(n);
       if(valid(n))notice('You are in a private club room. New posts and replies need coach approval. Showing up to 50 posts per view; coaches should archive older posts.');
     }catch(e){if(valid(n)){clearPrivate();notice('Unable to load the private Hub. Your access may have changed, or the service may be unavailable. Sign out and back in, or speak to a coach.');}}
   }
@@ -81,6 +82,24 @@ async function start(){
     $('published').replaceChildren();for(const p of published)$('published').append(render(p,[],n,false,true));
     $('reports').replaceChildren();for(const report of reports){const item=element('article',null,'card');item.append(element('p','Post '+report.postId+' · '+report.reason),button('Mark report resolved',async()=>{await updateDoc(doc(db,'hubReports',report.id),{status:'resolved',resolvedBy:user.uid,resolvedAt:serverTimestamp()});await load();}));$('reports').append(item);}if(!reports.length)$('reports').textContent='No open reports. Resolving a report does not automatically republish its post.';
   }
+  const fields=['cost','paid','fundraising','subsidy','target'];
+  const money=v=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(v/100);
+  async function loadSavings(n){
+    if(!$('savings-section')||!valid(n))return;
+    const view=$('savings-view');view.replaceChildren();
+    hide('savings-section',true);hide('savings-admin',true);
+    try{
+      const s=await getDoc(doc(db,'hubSavings',user.uid));if(!valid(n))return;
+      hide('savings-section',false);hide('savings-admin',staff?.role!=='admin');
+      if(!s.exists()){view.textContent=staff?'Use the administrator form to manage member totals.':'No savings record entered yet.';return;}
+      const d=s.data();if(!fields.every(k=>Number.isInteger(d[k])&&d[k]>=0))throw Error('Invalid record');
+      for(const [label,value] of [['Estimated cost',d.cost],['Personal savings paid',d.paid],['Fundraising credit',d.fundraising],['Club subsidy',d.subsidy],['Estimated outstanding balance',Math.max(0,d.cost-d.paid-d.fundraising-d.subsidy)],['Personal savings target',d.target]])view.append(element('p',label+': '+money(value)));
+      view.append(element('p','Savings progress: '+(d.target?Math.min(100,Math.round(d.paid/d.target*100))+'%':'No target set')));
+    }catch{if(valid(n)){view.replaceChildren();hide('savings-section',true);}}
+  }
+  $('savings-load')?.addEventListener('click',async()=>{const n=epoch();try{if(staff?.role!=='admin')return;const uid=$('savings-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter a member UID.');const s=await getDoc(doc(db,'hubSavings',uid));if(!valid(n)||staff?.role!=='admin'||$('savings-uid').value.trim()!==uid)return;for(const k of fields)$('savings-'+k).value=s.exists()?(s.data()[k]/100).toFixed(2):'';notice(s.exists()?'Savings record loaded.':'No record yet. Enter verified amounts.');}catch{if(valid(n))notice('Savings records unavailable. Check database rules.');}});
+  $('savings-uid')?.addEventListener('input',()=>{for(const k of fields)$('savings-'+k).value='';});
+  $('savings-admin-form')?.addEventListener('submit',async e=>{e.preventDefault();const n=epoch();const submit=e.target.querySelector('button[type=submit]');submit.disabled=true;try{if(staff?.role!=='admin')return;const uid=$('savings-uid').value.trim();if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid))throw Error('Enter a member UID.');const d={};for(const k of fields){const v=$('savings-'+k).value;if(!/^\d+(\.\d{1,2})?$/.test(v)||Number(v)>100000)throw Error('Enter valid amounts in pounds.');d[k]=Math.round(Number(v)*100);}if(!confirm('Save these cumulative totals for member '+uid+'?'))return;await setDoc(doc(db,'hubSavings',uid),{...d,updatedBy:user.uid,updatedAt:serverTimestamp()});if(valid(n)){e.target.reset();notice('Savings totals saved.');}}catch(err){if(valid(n))notice(err.message||'Savings could not be saved.');}finally{submit.disabled=false;}});
   $('login').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);$('password').value='';}catch{notice('Sign-in failed. Check your email and password.');}});
   $('reset-password').addEventListener('click',async()=>{if(!$('email').value||!$('email').checkValidity()){notice('Enter your email address first.');return;}try{await sendPasswordResetEmail(auth,$('email').value.trim());notice('If an account exists, password reset instructions will be sent.');}catch{notice('Could not request a password reset. Please try again later.');}});
   $('logout').addEventListener('click',async()=>{generation++;clearPrivate();await signOut(auth);});
