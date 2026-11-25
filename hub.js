@@ -1,3 +1,4 @@
+import {payments} from './payments.js';
 import {fundraising} from './fundraising-admin.js';
 import {selection} from './selection.js';
 import {committee} from './committee.js';
@@ -29,8 +30,9 @@ async function start(){
   const allowed=()=>!!user&&user.emailVerified&&(staff?.active===true||member?.active===true);
   const names={banter:'Banter',topics:'Topics',polls:'Polls',ideas:'Ideas'};
   const helpers={banter:'Share kind jokes and positive club moments. Everyone should be in on the joke.',topics:'Talk football, hobbies and club life.',polls:'Ask the club a question with two choices.',ideas:'Suggest fundraising events, trips and improvements.'};
-  function clearPrivate(){attendanceUI.clear();feesUI.clear();volUI.clear();avUI.clear();finUI.clear();comUI.clear();selUI.clear();frUI.clear();hide('request-access',true);$('pending-members').replaceChildren();$('request-form').reset();clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
+  function clearPrivate(){payUI.clear();attendanceUI.clear();feesUI.clear();volUI.clear();avUI.clear();finUI.clear();comUI.clear();selUI.clear();frUI.clear();hide('request-access',true);$('pending-members').replaceChildren();$('request-form').reset();clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
   const list=async(name,...filters)=>{const r=await getDocs(query(collection(db,name),...filters,limit(50)));return r.docs.map(d=>({id:d.id,...d.data()}));};
+  const payUI=payments({F,db,$,allowed,epoch,valid});
   const frUI=fundraising({F,db,$,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
   const selUI=selection({F,db,$,allowed,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
   const comUI=committee({F,db,$,allowed,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
