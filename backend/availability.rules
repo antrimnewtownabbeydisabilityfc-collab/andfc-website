@@ -1,0 +1,22 @@
+match /hubAvailability/{id} {
+ allow get, list: if hubRoom('adult');
+ allow create, update: if hubAdmin() && hubReady()
+ && request.resource.data.keys().hasOnly(['title','date','kind','open','updatedBy','updatedAt'])
+ && request.resource.data.keys().hasAll(['title','date','kind','open','updatedBy','updatedAt'])
+ && hubText(request.resource.data.title,100)
+ && request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+ && request.resource.data.kind in ['Training','Match','Tournament']
+ && request.resource.data.open is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+ match /responses/{uid} {
+ allow get: if hubRoom('adult') && (request.auth.uid == uid || hubAdmin());
+ allow list: if hubAdmin() && hubReady();
+ allow create, update: if hubRoom('adult') && request.auth.uid == uid
+ && get(/databases/$(database)/documents/hubAvailability/$(id)).data.open == true
+ && request.resource.data.keys().hasAll(['choice','updatedAt'])
+ && request.resource.data.keys().hasOnly(['choice','updatedAt'])
+ && request.resource.data.choice in ['Available','Unavailable','Unsure']
+ && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+ }
+}
