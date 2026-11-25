@@ -1,3 +1,4 @@
+import {selection} from './selection.js';
 import {committee} from './committee.js';
 import {finance} from './finance.js';
 import {availability} from './availability.js';
@@ -27,8 +28,9 @@ async function start(){
   const allowed=()=>!!user&&user.emailVerified&&(staff?.active===true||member?.active===true);
   const names={banter:'Banter',topics:'Topics',polls:'Polls',ideas:'Ideas'};
   const helpers={banter:'Share kind jokes and positive club moments. Everyone should be in on the joke.',topics:'Talk football, hobbies and club life.',polls:'Ask the club a question with two choices.',ideas:'Suggest fundraising events, trips and improvements.'};
-  function clearPrivate(){attendanceUI.clear();feesUI.clear();volUI.clear();avUI.clear();finUI.clear();comUI.clear();hide('request-access',true);$('pending-members').replaceChildren();$('request-form').reset();clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
+  function clearPrivate(){attendanceUI.clear();feesUI.clear();volUI.clear();avUI.clear();finUI.clear();comUI.clear();selUI.clear();hide('request-access',true);$('pending-members').replaceChildren();$('request-form').reset();clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
   const list=async(name,...filters)=>{const r=await getDocs(query(collection(db,name),...filters,limit(50)));return r.docs.map(d=>({id:d.id,...d.data()}));};
+  const selUI=selection({F,db,$,allowed,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
   const comUI=committee({F,db,$,allowed,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
   const finUI=finance({F,db,$,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
   const avUI=availability({F,db,$,allowed,isAdmin:()=>staff?.role==='admin'&&allowed(),epoch,valid,uid:()=>user.uid});
@@ -46,7 +48,7 @@ async function start(){
     if(!staff)audience=member.audience;
     if(!['adult','junior'].includes(audience))throw Error('Your room needs to be assigned by a coach.');
     $('room').value=audience;hide('room-control',!staff);hide('moderation',!staff);hide('member-management',staff?.role!=='admin');
-    hide('workspace',false);attendanceUI.show();feesUI.show();volUI.show();avUI.show();finUI.show();comUI.show();$('identity').textContent=(staff?'Coach / moderator':member.alias)+' · signed in';
+    hide('workspace',false);attendanceUI.show();feesUI.show();volUI.show();avUI.show();finUI.show();comUI.show();selUI.show();$('identity').textContent=(staff?'Coach / moderator':member.alias)+' · signed in';
     $('room-heading').textContent=audience==='adult'?'Adult members’ room':'Junior families’ room';
   }
   async function load(){
