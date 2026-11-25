@@ -1,0 +1,11 @@
+match /hubSelections/{eventId} {
+ allow get,list: if hubAdmin() && hubReady();
+ allow create,update: if hubAdmin() && hubReady() && exists(/databases/$(database)/documents/hubAvailability/$(eventId)) && request.resource.data.keys().hasAll(['published','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['published','updatedBy','updatedAt']) && request.resource.data.published is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+ match /players/{uid} {
+ allow get: if hubAdmin() && hubReady() || (hubRoom('adult') && request.auth.uid == uid && get(/databases/$(database)/documents/hubSelections/$(eventId)).data.published == true);
+ allow list: if hubAdmin() && hubReady();
+ allow create,update: if hubAdmin() && hubReady() && exists(/databases/$(database)/documents/hubMembers/$(uid)) && get(/databases/$(database)/documents/hubSelections/$(eventId)).data.published == false && request.resource.data.keys().hasAll(['team','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['team','updatedBy','updatedAt']) && request.resource.data.team in ['Eagles','Hawks','Cubs','Not selected'] && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+ }
+}
