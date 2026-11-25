@@ -1,0 +1,13 @@
+function committeeAccess() { return hubVerified() && hubReady() && (hubAdmin() || (exists(/databases/$(database)/documents/hubCommittee/$(request.auth.uid)) && get(/databases/$(database)/documents/hubCommittee/$(request.auth.uid)).data.active == true && hubRoom('adult'))); }
+match /hubCommittee/{uid} {
+ allow get: if hubVerified() && hubReady() && (request.auth.uid == uid || hubAdmin());
+ allow list: if hubAdmin() && hubReady();
+ allow create, update: if hubAdmin() && hubReady() && request.resource.data.keys().hasOnly(['active']) && request.resource.data.active is bool;
+ allow delete: if false;
+}
+match /hubCommitteeItems/{id} {
+ allow get,list: if committeeAccess();
+ allow create: if hubAdmin() && hubReady() && request.resource.data.keys().hasAll(['kind','title','body','assignee','deadline','status','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['kind','title','body','assignee','deadline','status','updatedBy','updatedAt']) && request.resource.data.kind in ['Task','Agenda','Minutes','Decision','Announcement','Funding','Document reference'] && hubText(request.resource.data.title,100) && request.resource.data.body is string && request.resource.data.body.size() <= 5000 && request.resource.data.assignee is string && request.resource.data.assignee.size() <= 128 && request.resource.data.deadline is string && request.resource.data.deadline.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$') && request.resource.data.status == 'Not started' && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow update: if committeeAccess() && (hubAdmin() || (resource.data.kind == 'Task' && resource.data.assignee == request.auth.uid)) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedBy','updatedAt']) && request.resource.data.status in ['Not started','In progress','Completed'] && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+ allow delete: if false;
+}
