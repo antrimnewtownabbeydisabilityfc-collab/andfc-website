@@ -12,6 +12,12 @@ service cloud.firestore {
     function hubPostRead(p) { return hubRoom(p.audience) && (hubStaff() || p.status == 'approved' || p.authorUid == request.auth.uid); }
     function hubParent(p) { return p.parentId == '' || (get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.status == 'approved' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.locked == false && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.parentId == '' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.audience == p.audience && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.kind == p.kind); }
     function hubOptions(p) { return p.options is list && ((p.kind == 'polls' && p.parentId == '' && p.options.size() == 2 && hubText(p.options[0],60) && hubText(p.options[1],60) && p.options[0] != p.options[1]) || ((p.kind != 'polls' || p.parentId != '') && p.options.size() == 0)); }
+    match /hubPaymentNotices/{id} {
+      allow read: if hubRoom('adult') && (hubAdmin() || resource.data.owner == request.auth.uid);
+      allow create: if hubRoom('adult') && request.resource.data.keys().hasAll(['owner','amount','reference','method','purpose','status','createdAt']) && request.resource.data.keys().hasOnly(['owner','amount','reference','method','purpose','status','createdAt']) && request.resource.data.owner == request.auth.uid && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000 && request.resource.data.reference is string && request.resource.data.reference.size() > 0 && request.resource.data.reference.size() <= 80 && request.resource.data.method in ['Bank transfer','PayPal'] && request.resource.data.purpose in ['Membership fees','Stirling savings','Fundraising','Top Bins','Tournament','Donation'] && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time;
+      allow update: if hubAdmin() && hubReady() && resource.data.status == 'pending' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','confirmedBy','confirmedAt']) && request.resource.data.status == 'confirmed' && request.resource.data.confirmedBy == request.auth.uid && request.resource.data.confirmedAt == request.time;
+      allow delete: if false;
+    }
     match /hubPaymentSettings/{id} {
       allow get: if id == 'bank' && hubRoom('adult');
       allow list, write: if false;
