@@ -1,0 +1,21 @@
+name: Membership email notifications
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: membership-notifications
+  cancel-in-progress: false
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check pending membership requests
+        env:
+          FIREBASE_NOTIFICATION_PASSWORD: ${{ secrets.FIREBASE_NOTIFICATION_PASSWORD }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python3 backend/notify_members.py
