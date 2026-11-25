@@ -12,6 +12,10 @@ service cloud.firestore {
     function hubPostRead(p) { return hubRoom(p.audience) && (hubStaff() || p.status == 'approved' || p.authorUid == request.auth.uid); }
     function hubParent(p) { return p.parentId == '' || (get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.status == 'approved' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.locked == false && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.parentId == '' && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.audience == p.audience && get(/databases/$(database)/documents/hubPosts/$(p.parentId)).data.kind == p.kind); }
     function hubOptions(p) { return p.options is list && ((p.kind == 'polls' && p.parentId == '' && p.options.size() == 2 && hubText(p.options[0],60) && hubText(p.options[1],60) && p.options[0] != p.options[1]) || ((p.kind != 'polls' || p.parentId != '') && p.options.size() == 0)); }
+    match /hubPaymentSettings/{id} {
+      allow get: if id == 'bank' && hubRoom('adult');
+      allow list, write: if false;
+    }
     match /hubSettings/{id} {
       allow get: if hubVerified() && id == 'access';
       allow list, write: if false;
