@@ -21,7 +21,7 @@ async function start(){
     import('https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js'),
     import('https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js')]);
-  const {getFirestore,doc,getDoc,setDoc,collection,query,where,getDocs,limit,serverTimestamp,updateDoc,writeBatch}=F;
+  const {getFirestore,doc,getDoc,setDoc,collection,query,where,getDocs,limit,orderBy,documentId,startAfter,serverTimestamp,updateDoc,writeBatch}=F;
   const app=initializeApp(firebaseConfig,'club-hub'),auth=getAuth(app),db=getFirestore(app);
   // Shared devices: no persistent sign-in or offline Firestore cache.
   await setPersistence(auth,inMemoryPersistence);
@@ -32,6 +32,7 @@ async function start(){
   const names={banter:'Banter',topics:'Topics',polls:'Polls',ideas:'Ideas'};
   const helpers={banter:'Share kind jokes and positive club moments. Everyone should be in on the joke.',topics:'Talk football, hobbies and club life.',polls:'Ask the club a question with two choices.',ideas:'Suggest fundraising events, trips and improvements.'};
   function clearPrivate(){pnUI.clear();payUI.clear();attendanceUI.clear();feesUI.clear();volUI.clear();avUI.clear();finUI.clear();comUI.clear();selUI.clear();frUI.clear();hide('request-access',true);$('pending-members').replaceChildren();$('member-directory')?.replaceChildren();$('member-form').reset();$('request-form').reset();clearSavingsReport(); $('savings-view')?.replaceChildren(); $('savings-admin-form')?.reset(); $('savings-member-picker')?.replaceChildren(); $('savings-summary')?.replaceChildren(); if($('savings-section'))hide('savings-section',true); if($('savings-admin'))hide('savings-admin',true);for(const id of ['feed','mine','queue','reports','published'])$(id).replaceChildren();$('compose').reset();member=null;staff=null;hide('workspace',true);hide('moderation',true);hide('member-management',true);}
+  async function accessRequests(){const docs=[];let cursor=null;while(true){const constraints=[orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(50)];const page=await getDocs(query(collection(db,'hubAccessRequests'),...constraints));docs.push(...page.docs);if(page.size<50)break;cursor=page.docs[page.docs.length-1];}return {docs,size:docs.length};}
   const list=async(name,...filters)=>{const r=await getDocs(query(collection(db,name),...filters,limit(50)));return r.docs.map(d=>({id:d.id,...d.data()}));};
   const pnUI=paymentNotices({F,db,$,allowed,epoch,valid,uid:()=>user.uid,isAdmin:()=>staff?.role==="admin"&&allowed()});
   const payUI=payments({F,db,$,allowed,epoch,valid});
@@ -54,7 +55,7 @@ async function start(){
     if(!staff)audience=member.audience;
     if(!['adult','junior'].includes(audience))throw Error('Your room needs to be assigned by a coach.');
     $('room').value=audience;hide('room-control',!staff);hide('moderation',!staff);hide('member-management',staff?.role!=='admin');
-    hide('workspace',false);pnUI.show();attendanceUI.show();feesUI.show();volUI.show();avUI.show();finUI.show();comUI.show();selUI.show();frUI.show();$('identity').textContent=(staff?'Coach / moderator':member.alias)+' · signed in';
+    hide('workspace',false);pnUI.show();attendanceUI.show();feesUI.show();volUI.show();avUI.show();finUI.show();comUI.show();selUI.show();frUI.show();$('identity').textContent=(staff?(staff.role==='admin'?'Administrator':'Coach / moderator'):member.alias)+' · signed in';
     $('room-heading').textContent=audience==='adult'?'Adult members’ room':'Junior families’ room';
   }
   async function load(){
@@ -149,7 +150,7 @@ async function start(){
     if(!box){box=element('div');box.id='member-directory';$('pending-members').after(box);}
     box.replaceChildren(element('h3','Registered Hub members'),element('p','Loading membership register…'));
     try{
-      const [members,requests]=await Promise.all([getDocs(collection(db,'hubMembers')),getDocs(collection(db,'hubAccessRequests'))]);
+      const [members,requests]=await Promise.all([getDocs(collection(db,'hubMembers')),accessRequests()]);
       if(!valid(n)||staff?.role!=='admin'||!allowed())return;
       const rows=members.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>String(a.alias||'').localeCompare(String(b.alias||'')));
       const active=rows.filter(m=>m.active===true).length;
@@ -164,7 +165,7 @@ async function start(){
       if(!rows.length)box.append(element('p','No membership records yet.'));
     }catch(e){if(valid(n)&&staff?.role==='admin')box.replaceChildren(element('p','Membership register unavailable: '+(e.code||e.message)));}
   }
-  async function pendingMembers(n){await memberDirectory(n);if(!valid(n)||staff?.role!=='admin'||!allowed())return;const box=$('pending-members');try{const requests=(await getDocs(collection(db,'hubAccessRequests'))).docs.map(d=>({...d.data(),id:d.id}));if(!valid(n)||staff?.role!=='admin')return;box.replaceChildren();for(const req of requests){const card=element('article',null,'card');card.append(element('p',req.alias+' · '+req.email));for(const approve of [true,false])card.append(button(approve?'Approve':'Decline',async()=>{if(!valid(n)||staff?.role!=='admin')return;if(!confirm(approve?'Confirm identity and age 18+ before approving '+req.alias+'?':'Decline this request?'))return;const batch=writeBatch(db);if(approve)batch.set(doc(db,'hubMembers',req.id),{alias:req.alias,audience:'adult',active:true,updatedBy:user.uid,updatedAt:serverTimestamp()});batch.delete(doc(db,'hubAccessRequests',req.id));await batch.commit();await load();}));box.append(card);}if(!requests.length)box.textContent='No pending requests.';}catch{if(valid(n))box.textContent='Pending requests unavailable. Firebase access request rules must be published.';}}
+  async function pendingMembers(n){await memberDirectory(n);if(!valid(n)||staff?.role!=='admin'||!allowed())return;const box=$('pending-members');try{const requests=(await accessRequests()).docs.map(d=>({...d.data(),id:d.id}));if(!valid(n)||staff?.role!=='admin')return;box.replaceChildren();for(const req of requests){const card=element('article',null,'card');card.append(element('p',req.alias+' · '+req.email));for(const approve of [true,false])card.append(button(approve?'Approve':'Decline',async()=>{if(!valid(n)||staff?.role!=='admin')return;if(!confirm(approve?'Confirm identity and age 18+ before approving '+req.alias+'?':'Decline this request?'))return;const batch=writeBatch(db);if(approve)batch.set(doc(db,'hubMembers',req.id),{alias:req.alias,audience:'adult',active:true,updatedBy:user.uid,updatedAt:serverTimestamp()});batch.delete(doc(db,'hubAccessRequests',req.id));await batch.commit();await load();}));box.append(card);}if(!requests.length)box.textContent='No pending requests.';}catch{if(valid(n))box.textContent='Pending requests unavailable. Firebase access request rules must be published.';}}
   $('request-form').addEventListener('submit',async e=>{e.preventDefault();const n=epoch();try{if(!user?.emailVerified||member)return;const alias=cleanText($('request-name').value,40);if(!alias)throw Error('Enter your name.');const ref=doc(db,'hubAccessRequests',user.uid);const existing=await getDoc(ref);if(!valid(n))return;if(!existing.exists())await setDoc(ref,{alias,email:user.email,createdAt:serverTimestamp()});if(valid(n))notice('Your access request is awaiting club approval.');}catch(err){if(valid(n))notice('Unable to request access: '+(err.code||err.message));}});
   $('login').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);$('password').value='';}catch{notice('Sign-in failed. Check your email and password.');}});
   $('reset-password').addEventListener('click',async()=>{if(!$('email').value||!$('email').checkValidity()){notice('Enter your email address first.');return;}try{await sendPasswordResetEmail(auth,$('email').value.trim());notice('If an account exists, password reset instructions will be sent.');}catch{notice('Could not request a password reset. Please try again later.');}});
